@@ -33,6 +33,7 @@ import com.facebook.react.bridge.ReactMethod;
 import com.facebook.react.bridge.ReadableMap;
 import com.facebook.react.common.MapBuilder;
 
+import java.util.List;
 import java.util.Map;
 
 public class TrimmerManager extends ReactContextBaseJavaModule {
@@ -86,6 +87,11 @@ public class TrimmerManager extends ReactContextBaseJavaModule {
   @ReactMethod
   public void crop(String path, ReadableMap options, Promise promise) {
     Trimmer.crop(path, options, promise, reactContext);
+  }
+
+  @ReactMethod
+  public void merge(List<String> paths, ReadableMap options, Promise promise) {
+    Trimmer.merge(paths, options, promise, reactContext);
   }
 
   @ReactMethod

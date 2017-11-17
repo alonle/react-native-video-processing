@@ -42,6 +42,7 @@ import com.facebook.react.bridge.WritableArray;
 import com.facebook.react.bridge.WritableMap;
 import com.facebook.react.uimanager.ThemedReactContext;
 import com.shahenlibrary.Events.Events;
+import com.shahenlibrary.Merger.Merger;
 import com.shahenlibrary.interfaces.OnCompressVideoListener;
 import com.shahenlibrary.interfaces.OnTrimVideoListener;
 import com.shahenlibrary.utils.VideoEdit;
@@ -52,6 +53,7 @@ import java.io.IOException;
 
 import wseemann.media.FFmpegMediaMetadataRetriever;
 
+import java.util.List;
 import java.util.UUID;
 import java.io.FileOutputStream;
 import java.util.Arrays;
@@ -657,5 +659,9 @@ public class Trimmer {
     // TODO: EXPOSE TO JS "isFfmpegLoaded" AND "isFfmpegLoading"
 
     return;
+  }
+
+  public static void merge(List<String> paths, ReadableMap options, final Promise promise, ReactApplicationContext reactContext) {
+    Merger.merge(paths,options,promise,reactContext);
   }
 }
