@@ -17,15 +17,16 @@ import java.util.UUID;
 /**
  * Created by alon on 17/11/2017.
  */
+//npm install --save https://github.com/alonle/react-native-video-processing/tarball/add-merge-files
 public class Merger {
     private static final String LOG_TAG = "RNTrimmerManager";
 
-    public static void merge(List<String> paths, ReadableMap options, final Promise promise, ReactApplicationContext reactContext){
+    public static void merge(ReadableArray paths, final Promise promise, ReactApplicationContext reactContext){
         final File tempFile = createTempFile("mp4", promise, reactContext);
         ArrayList<String> cmd = new ArrayList<String>();
-        for(String path: paths){
+        for(int i=0; i< paths.size();i++){
             cmd.add("-i");
-            cmd.add(path);
+            cmd.add(paths.getString(i));
         }
 
         String[] params = {"-strict", "-2","-movflags" ,"faststart","-filter_complex","concat=n="+paths.size()+":v=1:a=1:unsafe=1 [v] [a]", "-map", "[v]", "-map","[a]"};

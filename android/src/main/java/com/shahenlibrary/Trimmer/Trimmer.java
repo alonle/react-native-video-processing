@@ -34,12 +34,7 @@ import android.os.Build;
 import android.util.Base64;
 import android.util.Log;
 
-import com.facebook.react.bridge.Arguments;
-import com.facebook.react.bridge.Promise;
-import com.facebook.react.bridge.ReactApplicationContext;
-import com.facebook.react.bridge.ReadableMap;
-import com.facebook.react.bridge.WritableArray;
-import com.facebook.react.bridge.WritableMap;
+import com.facebook.react.bridge.*;
 import com.facebook.react.uimanager.ThemedReactContext;
 import com.shahenlibrary.Events.Events;
 import com.shahenlibrary.Merger.Merger;
@@ -661,7 +656,7 @@ public class Trimmer {
     return;
   }
 
-  public static void merge(List<String> paths, ReadableMap options, final Promise promise, ReactApplicationContext reactContext) {
-    Merger.merge(paths,options,promise,reactContext);
+  public static void merge(ReadableArray paths, final Promise promise, ReactApplicationContext reactContext) {
+    Merger.merge(paths,promise,reactContext);
   }
 }

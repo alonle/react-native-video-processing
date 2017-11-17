@@ -26,11 +26,7 @@ package com.shahenlibrary.Trimmer;
 import android.support.annotation.NonNull;
 import android.util.Log;
 
-import com.facebook.react.bridge.Promise;
-import com.facebook.react.bridge.ReactApplicationContext;
-import com.facebook.react.bridge.ReactContextBaseJavaModule;
-import com.facebook.react.bridge.ReactMethod;
-import com.facebook.react.bridge.ReadableMap;
+import com.facebook.react.bridge.*;
 import com.facebook.react.common.MapBuilder;
 
 import java.util.List;
@@ -90,8 +86,8 @@ public class TrimmerManager extends ReactContextBaseJavaModule {
   }
 
   @ReactMethod
-  public void merge(List<String> paths, ReadableMap options, Promise promise) {
-    Trimmer.merge(paths, options, promise, reactContext);
+  public void merge(ReadableArray paths, Promise promise) {
+    Trimmer.merge(paths, promise, reactContext);
   }
 
   @ReactMethod
