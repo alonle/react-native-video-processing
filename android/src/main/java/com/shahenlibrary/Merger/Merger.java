@@ -5,6 +5,7 @@ import android.util.Log;
 import com.facebook.react.bridge.*;
 import com.github.hiteshsondhi88.libffmpeg.FFmpeg;
 import com.github.hiteshsondhi88.libffmpeg.FFmpegExecuteResponseHandler;
+import com.shahenlibrary.Trimmer.Trimmer;
 
 
 import java.io.File;
@@ -40,43 +41,7 @@ public class Merger {
 
         Log.d(LOG_TAG, Arrays.toString(cmdToExec));
 
-        try {
-            FFmpeg.getInstance(reactContext).execute(cmdToExec, new FFmpegExecuteResponseHandler() {
-
-                @Override
-                public void onStart() {
-                    Log.d(LOG_TAG, "merge: onStart");
-                }
-
-                @Override
-                public void onProgress(String message) {
-                    Log.d(LOG_TAG, "merge: onProgress");
-                }
-
-                @Override
-                public void onFailure(String message) {
-                    Log.d(LOG_TAG, "merge: onFailure");
-                    promise.reject("merge error: failed.", message);
-                }
-
-                @Override
-                public void onSuccess(String message) {
-                    Log.d(LOG_TAG, "merge: onSuccess");
-                    Log.d(LOG_TAG, message);
-
-                    WritableMap event = Arguments.createMap();
-                    event.putString("source", "file://" + tempFile.getPath());
-                    promise.resolve(event);
-                }
-
-                @Override
-                public void onFinish() {
-                    Log.d(LOG_TAG, "merge: onFinish");
-                }
-            });
-        } catch (Exception e) {
-            promise.reject("Merge error", e.toString());
-        }
+        Trimmer.executeFfmpegCommand(cmd, tempFile.getPath(), reactContext, promise, "Merge error", null);
 
     }
 
