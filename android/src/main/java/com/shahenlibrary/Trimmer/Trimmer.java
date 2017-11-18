@@ -57,16 +57,191 @@ import java.io.FileOutputStream;
 import java.util.Arrays;
 import java.util.ArrayList;
 
-import com.github.hiteshsondhi88.libffmpeg.FFmpeg;
-import com.github.hiteshsondhi88.libffmpeg.FFmpegExecuteResponseHandler;
-import com.github.hiteshsondhi88.libffmpeg.FFmpegLoadBinaryResponseHandler;
+import java.io.BufferedReader;
+import java.io.InputStreamReader;
+import java.io.InputStream;
+import java.io.BufferedInputStream;
+import java.io.FileInputStream;
+import android.os.AsyncTask;
+import android.support.annotation.NonNull;
+import android.support.annotation.Nullable;
+
+import java.security.NoSuchAlgorithmException;
+import java.security.MessageDigest;
+import java.util.Formatter;
 
 
 public class Trimmer {
 
   private static final String LOG_TAG = "RNTrimmerManager";
+  private static final String FFMPEG_FILE_NAME = "ffmpeg";
+  private static final String FFMPEG_SHA1 = "5b430b578e0fcd9903c3553d977aa99b5f461c7a";
 
-  private static boolean ffmpegLoaded;
+  private static boolean ffmpegLoaded = false;
+  private static final int DEFAULT_BUFFER_SIZE = 4096;
+  private static final int END_OF_FILE = -1;
+
+  private static class FfmpegCmdAsyncTaskParams {
+    ArrayList<String> cmd;
+    final String pathToProcessingFile;
+    ReactApplicationContext ctx;
+    final Promise promise;
+    final String errorMessageTitle;
+    final OnCompressVideoListener cb;
+
+    FfmpegCmdAsyncTaskParams(ArrayList<String> cmd, final String pathToProcessingFile, ReactApplicationContext ctx, final Promise promise, final String errorMessageTitle, final OnCompressVideoListener cb) {
+      this.cmd = cmd;
+      this.pathToProcessingFile = pathToProcessingFile;
+      this.ctx = ctx;
+      this.promise = promise;
+      this.errorMessageTitle = errorMessageTitle;
+      this.cb = cb;
+    }
+  }
+
+  private static class FfmpegCmdAsyncTask extends AsyncTask<FfmpegCmdAsyncTaskParams, Void, Void> {
+
+    @Override
+    protected Void doInBackground(FfmpegCmdAsyncTaskParams... params) {
+      ArrayList<String> cmd = params[0].cmd;
+      final String pathToProcessingFile = params[0].pathToProcessingFile;
+      ReactApplicationContext ctx = params[0].ctx;
+      final Promise promise = params[0].promise;
+      final String errorMessageTitle = params[0].errorMessageTitle;
+      final OnCompressVideoListener cb = params[0].cb;
+
+
+      String errorMessageFromCmd = null;
+
+      try {
+        // NOTE: 3. EXECUTE "ffmpeg" COMMAND
+        String ffmpegInDir = getFfmpegAbsolutePath(ctx);
+        cmd.add(0, ffmpegInDir);
+        Process p = new ProcessBuilder(cmd).start();
+
+        BufferedReader input = getOutputFromProcess(p);
+        String line = null;
+
+        StringBuilder sInput = new StringBuilder();
+
+        while((line=input.readLine()) != null) {
+            Log.d(LOG_TAG, "processing ffmpeg");
+            System.out.println(sInput);
+            sInput.append(line);
+        }
+        input.close();
+
+        int errorCode = p.waitFor();
+        Log.d(LOG_TAG, "ffmpeg processing completed");
+
+        if ( errorCode != 0 ) {
+          BufferedReader error = getErrorFromProcess(p);
+          StringBuilder sError = new StringBuilder();
+
+          Log.d(LOG_TAG, "ffmpeg error code: " + errorCode);
+          while((line=error.readLine()) != null) {
+              System.out.println(sError);
+              sError.append(line);
+          }
+          error.close();
+
+          errorMessageFromCmd = sError.toString();
+        }
+      } catch (Exception e) {
+        errorMessageFromCmd = e.toString();
+      }
+
+      if ( errorMessageFromCmd != null ) {
+        String errorMessage = errorMessageTitle + ": failed. " + errorMessageFromCmd;
+        if (cb != null) {
+          cb.onError(errorMessage);
+        } else if (promise != null) {
+          promise.reject(errorMessage);
+        }
+      } else {
+        String filePath = "file://" + pathToProcessingFile;
+        if (cb != null) {
+          cb.onSuccess(filePath);
+        } else if (promise != null) {
+          WritableMap event = Arguments.createMap();
+          event.putString("source", filePath);
+          promise.resolve(event);
+        }
+      }
+
+      return null;
+    }
+
+  }
+
+
+  private static class LoadFfmpegAsyncTaskParams {
+    ReactApplicationContext ctx;
+
+    LoadFfmpegAsyncTaskParams(ReactApplicationContext ctx) {
+      this.ctx = ctx;
+    }
+  }
+
+  private static class LoadFfmpegAsyncTask extends AsyncTask<LoadFfmpegAsyncTaskParams, Void, Void> {
+
+    @Override
+    protected Void doInBackground(LoadFfmpegAsyncTaskParams... params) {
+      ReactApplicationContext ctx = params[0].ctx;
+
+      // NOTE: 1. COPY "ffmpeg" FROM ASSETS TO /data/data/com.myapp...
+      String filesDir = getFilesDirAbsolutePath(ctx);
+
+      try {
+        File ffmpegFile = new File(filesDir, FFMPEG_FILE_NAME);
+        if ( !(ffmpegFile.exists() && getSha1FromFile(ffmpegFile).equalsIgnoreCase(FFMPEG_SHA1)) ) {
+          final FileOutputStream ffmpegStreamToDataDir = new FileOutputStream(ffmpegFile);
+          byte[] buffer = new byte[DEFAULT_BUFFER_SIZE];
+
+          int n;
+          InputStream ffmpegInAssets = ctx.getAssets().open("armeabi-v7a" + File.separator + FFMPEG_FILE_NAME);
+          while(END_OF_FILE != (n = ffmpegInAssets.read(buffer))) {
+            ffmpegStreamToDataDir.write(buffer, 0, n);
+          }
+
+          ffmpegStreamToDataDir.flush();
+          ffmpegStreamToDataDir.close();
+
+          ffmpegInAssets.close();
+        }
+      } catch (IOException e) {
+        Log.d(LOG_TAG, "Failed to copy ffmpeg" + e.toString());
+        ffmpegLoaded = false;
+        return null;
+      }
+
+      String ffmpegInDir = getFfmpegAbsolutePath(ctx);
+
+      // NOTE: 2. MAKE "ffmpeg" EXECUTABLE
+      String[] cmdlineChmod = { "chmod", "700", ffmpegInDir };
+      // TODO: 1. CHECK PERMISSIONS
+      Process pChmod = null;
+      try {
+        pChmod = Runtime.getRuntime().exec(cmdlineChmod);
+      } catch (IOException e) {
+        Log.d(LOG_TAG, "Failed to make ffmpeg executable. Error in execution cmd. " + e.toString());
+        ffmpegLoaded = false;
+        return null;
+      }
+
+      try {
+        pChmod.waitFor();
+      } catch (InterruptedException e) {
+        Log.d(LOG_TAG, "Failed to make ffmpeg executable. Error in wait cmd. " + e.toString());
+        ffmpegLoaded = false;
+        return null;
+      }
+
+      ffmpegLoaded = true;
+      return null;
+    }
+  }
+
 
   public static void getPreviewImages(String path, Promise promise, ReactApplicationContext ctx) {
     FFmpegMediaMetadataRetriever retriever = new FFmpegMediaMetadataRetriever();
@@ -248,7 +423,7 @@ public class Trimmer {
     cmd.add("libx264");
     if (width != null && height != null) {
       cmd.add("-vf");
-      cmd.add("scale=" + Double.toString(width) + ":" + Double.toString(height));
+      cmd.add("scale=" + width.intValue() + ":" + height.intValue());
     }
 
     cmd.add("-preset");
@@ -261,54 +436,7 @@ public class Trimmer {
     }
     cmd.add(tempFile.getPath());
 
-    final String[] cmdToExec = cmd.toArray( new String[0] );
-
-    Log.d(LOG_TAG, Arrays.toString(cmdToExec));
-
-    try {
-      FFmpeg.getInstance(ctx).execute(cmdToExec, new FFmpegExecuteResponseHandler() {
-
-        @Override
-        public void onStart() {
-          Log.d(LOG_TAG, "Compress: Start");
-        }
-
-        @Override
-        public void onProgress(String message) {
-        }
-
-        @Override
-        public void onFailure(String message) {
-          if (cb != null) {
-            cb.onError("compress error: failed. " + message);
-          } else if (promise != null) {
-            promise.reject("compress error: failed.", message);
-          }
-        }
-
-        @Override
-        public void onSuccess(String message) {
-          if (cb != null) {
-            cb.onSuccess("file://" + tempFile.getPath());
-          } else if (promise != null) {
-            WritableMap event = Arguments.createMap();
-            event.putString("source", "file://" + tempFile.getPath());
-            promise.resolve(event);
-          }
-        }
-
-        @Override
-        public void onFinish() {
-          Log.d(LOG_TAG, "Compress: Finished");
-        }
-      });
-    } catch (Exception e) {
-      if (cb != null) {
-        cb.onError("compress error. Command already running" + e.toString());
-      } else if (promise != null) {
-        promise.reject("compress error. Command already running", e.toString());
-      }
-    }
+    executeFfmpegCommand(cmd, tempFile.getPath(), rctx, promise, "compress error", cb);
   }
 
   static File createTempFile(String extension, final Promise promise, Context ctx) {
@@ -386,6 +514,14 @@ public class Trimmer {
     promise.resolve(event);
   }
 
+  private static BufferedReader getOutputFromProcess(Process p) {
+    return new BufferedReader(new InputStreamReader(p.getInputStream()));
+  }
+
+  private static BufferedReader getErrorFromProcess(Process p) {
+    return new BufferedReader(new InputStreamReader(p.getErrorStream()));
+  }
+
   static void crop(String source, ReadableMap options, final Promise promise, ReactApplicationContext ctx) {
     int cropWidth = (int)( options.getDouble("cropWidth") );
     int cropHeight = (int)( options.getDouble("cropHeight") );
@@ -426,15 +562,21 @@ public class Trimmer {
     ArrayList<String> cmd = new ArrayList<String>();
     cmd.add("-y"); // NOTE: OVERWRITE OUTPUT FILE
 
+    // NOTE: INPUT FILE
+    cmd.add("-i");
+    cmd.add(source);
+
+    // NOTE: PLACE ARGUMENTS FOR FFMPEG IN THIS ORDER:
+    // 1. "-i" (INPUT FILE)
+    // 2. "-ss" (START TIME)
+    // 3. "-to" (END TIME) or "-t" (TRIM TIME)
+    // OTHERWISE WE WILL LOSE ACCURACY AND WILL GET WRONG CLIPPED VIDEO
+
     String startTime = options.getString("startTime");
     if ( !startTime.equals(null) && !startTime.equals("") ) {
       cmd.add("-ss");
       cmd.add(startTime);
     }
-
-    // NOTE: INPUT FILE
-    cmd.add("-i");
-    cmd.add(source);
 
     String endTime = options.getString("endTime");
     if ( !endTime.equals(null) && !endTime.equals("") ) {
@@ -456,77 +598,64 @@ public class Trimmer {
     // NOTE: OUTPUT FILE
     cmd.add(tempFile.getPath());
 
-    final String[] cmdToExec = cmd.toArray( new String[0] );
+    executeFfmpegCommand(cmd, tempFile.getPath(), ctx, promise, "Crop error", null);
+  }
 
-    Log.d(LOG_TAG, Arrays.toString(cmdToExec));
+  static private Void executeFfmpegCommand(@NonNull ArrayList<String> cmd, @NonNull final String pathToProcessingFile, @NonNull ReactApplicationContext ctx, @NonNull final Promise promise, @NonNull final String errorMessageTitle, @Nullable final OnCompressVideoListener cb) {
+    FfmpegCmdAsyncTaskParams ffmpegCmdAsyncTaskParams = new FfmpegCmdAsyncTaskParams(cmd, pathToProcessingFile, ctx, promise, errorMessageTitle, cb);
+
+    FfmpegCmdAsyncTask ffmpegCmdAsyncTask = new FfmpegCmdAsyncTask();
+    ffmpegCmdAsyncTask.execute(ffmpegCmdAsyncTaskParams);
+
+    return null;
+  }
+
+  private static String getFilesDirAbsolutePath(ReactApplicationContext ctx) {
+    return ctx.getFilesDir().getAbsolutePath();
+  }
+
+  private static String getFfmpegAbsolutePath(ReactApplicationContext ctx) {
+    return getFilesDirAbsolutePath(ctx) + File.separator + FFMPEG_FILE_NAME;
+  }
+
+  public static String getSha1FromFile(final File file) {
+    MessageDigest messageDigest = null;
+    try {
+      messageDigest = MessageDigest.getInstance("SHA1");
+    } catch (NoSuchAlgorithmException e) {
+      Log.d(LOG_TAG, "Failed to load SHA1 Algorithm. " + e.toString());
+      return "";
+    }
 
     try {
-      FFmpeg.getInstance(ctx).execute(cmdToExec, new FFmpegExecuteResponseHandler() {
-
-        @Override
-        public void onStart() {
-          Log.d(LOG_TAG, "crop: onStart");
+      try (InputStream is = new BufferedInputStream(new FileInputStream(file))) {
+        final byte[] buffer = new byte[1024];
+        for (int read = 0; (read = is.read(buffer)) != -1;) {
+          messageDigest.update(buffer, 0, read);
         }
+        is.close();
+      }
+    } catch (IOException e) {
+      Log.d(LOG_TAG, "Failed to load SHA1 Algorithm. IOException. " + e.toString());
+      return "";
+    }
 
-        @Override
-        public void onProgress(String message) {
-          Log.d(LOG_TAG, "crop: onProgress");
-        }
-
-        @Override
-        public void onFailure(String message) {
-          Log.d(LOG_TAG, "crop: onFailure");
-          promise.reject("Crop error: failed.", message);
-        }
-
-        @Override
-        public void onSuccess(String message) {
-          Log.d(LOG_TAG, "crop: onSuccess");
-          Log.d(LOG_TAG, message);
-
-          WritableMap event = Arguments.createMap();
-          event.putString("source", "file://" + tempFile.getPath());
-          promise.resolve(event);
-        }
-
-        @Override
-        public void onFinish() {
-          Log.d(LOG_TAG, "crop: onFinish");
-        }
-      });
-    } catch (Exception e) {
-      promise.reject("Crop error. Command already running", e.toString());
+    try (Formatter f = new Formatter()) {
+      for (final byte b : messageDigest.digest()) {
+        f.format("%02x", b);
+      }
+      return f.toString();
     }
   }
 
-  public static void loadFfmpeg(ReactApplicationContext ctx){
-    try {
-      FFmpeg.getInstance(ctx).loadBinary(new FFmpegLoadBinaryResponseHandler() {
-        @Override
-        public void onStart() {
-          Log.d(LOG_TAG, "load FFMPEG: onStart");
-        }
+  public static void loadFfmpeg(ReactApplicationContext ctx) {
+    LoadFfmpegAsyncTaskParams loadFfmpegAsyncTaskParams = new LoadFfmpegAsyncTaskParams(ctx);
 
-        @Override
-        public void onSuccess() {
-          Log.d(LOG_TAG, "load FFMPEG: onSuccess");
-          ffmpegLoaded = true;
-        }
+    LoadFfmpegAsyncTask loadFfmpegAsyncTask = new LoadFfmpegAsyncTask();
+    loadFfmpegAsyncTask.execute(loadFfmpegAsyncTaskParams);
 
-        @Override
-        public void onFailure() {
-          ffmpegLoaded = false;
-          Log.d(LOG_TAG, "load FFMPEG: Failed to load ffmpeg");
-        }
+    // TODO: EXPOSE TO JS "isFfmpegLoaded" AND "isFfmpegLoading"
 
-        @Override
-        public void onFinish() {
-          Log.d(LOG_TAG, "load FFMPEG: onFinish");
-        }
-      });
-    } catch (Exception e){
-      ffmpegLoaded = false;
-      Log.d("Failed to load ffmpeg", e.toString());
-    }
+    return;
   }
 }
