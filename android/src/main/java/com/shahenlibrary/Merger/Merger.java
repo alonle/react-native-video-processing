@@ -28,7 +28,7 @@ public class Merger {
             cmd.add(paths.getString(i));
         }
 
-        String[] params = {"-strict", "-2","-movflags" ,"faststart","-filter_complex","concat=n="+paths.size()+":v=1:a=1:unsafe=1 [v] [a]; [v]scale=640:480[v2]; [0:v2]setpts=1.5*PTS[v2];[0:a]atempo=0.66[a]", "-map", "[v2]", "-map","[a]"};
+        String[] params = {"-strict", "-2","-movflags" ,"faststart","-filter_complex","concat=n="+paths.size()+":v=1:a=1:unsafe=1 [v] [a];  [0:v]setpts=1.5*PTS[v]; [0:a]atempo=0.66[a] [v]scale=640:480[v2]", "-map", "[v2]", "-map","[a]"};
 
         cmd.addAll(Arrays.asList(params));
 
