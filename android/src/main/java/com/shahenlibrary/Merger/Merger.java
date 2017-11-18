@@ -3,8 +3,6 @@ package com.shahenlibrary.Merger;
 import android.content.Context;
 import android.util.Log;
 import com.facebook.react.bridge.*;
-import com.github.hiteshsondhi88.libffmpeg.FFmpeg;
-import com.github.hiteshsondhi88.libffmpeg.FFmpegExecuteResponseHandler;
 import com.shahenlibrary.Trimmer.Trimmer;
 
 
