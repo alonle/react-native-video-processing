@@ -252,7 +252,6 @@ class RNVideoTrimmer: NSObject {
           }
       }
   }
-
   @objc func merge(_ paths: Array<String>, callback: @escaping RCTResponseSenderBlock) {
       let manager = FileManager.default
       guard let documentDirectory = try? manager.url(for: .documentDirectory, in: .userDomainMask, appropriateFor: nil, create: true)
@@ -272,14 +271,91 @@ class RNVideoTrimmer: NSObject {
     
       func result(_ message: NSError?, _ myurl: NSURL?) {
         if myurl != nil {
-          callback( [NSNull(), outputURL.absoluteString] )
+          slowMovie(source: outputURL.absoluteString, callback: callback)
         }else{
           callback( ["Failed: \(String(describing: message))", NSNull()] )
         }
       }
       let resultvoid: (NSError?, NSURL?) -> Void = result
-      
+    
       VideoMergeManager.mergeMultipleVideos(destinationPath: outputURL.path, filePaths: paths, finished: resultvoid)
+    
+  }
+  
+  func slowMovie(source: String, callback: @escaping RCTResponseSenderBlock){
+    let sourceURL = getSourceURL(source: source)
+    let asset = AVAsset(url: sourceURL as URL)
+    let speedMultiple = 0.90
+    
+    let mixComposition = AVMutableComposition()
+    
+    let videoTrack = mixComposition.addMutableTrack(withMediaType: AVMediaTypeVideo, preferredTrackID: kCMPersistentTrackID_Invalid)
+    let audioTrack = mixComposition.addMutableTrack(withMediaType: AVMediaTypeAudio, preferredTrackID: kCMPersistentTrackID_Invalid)
+    
+    
+    let timeRange = CMTimeRangeMake(kCMTimeZero, asset.duration)
+    let scaleTimeValue = Double(asset.duration.value)/speedMultiple
+    let scaleTime = CMTime(value: CMTimeValue(scaleTimeValue), timescale: asset.duration.timescale)
+    
+    for assetVideoTrack in asset.tracks (withMediaType: AVMediaTypeVideo) {
+      
+      do {
+        try videoTrack.insertTimeRange(timeRange, of: assetVideoTrack, at: kCMTimeZero)
+        videoTrack.scaleTimeRange(timeRange, toDuration: scaleTime)
+      } catch {
+        //in case of error just return the input
+      }
+    }
+    
+    for assetAudioTrack in asset.tracks(withMediaType: AVMediaTypeAudio) {
+      do {
+        try audioTrack.insertTimeRange(timeRange, of: assetAudioTrack, at: kCMTimeZero)
+        audioTrack.scaleTimeRange(timeRange, toDuration: scaleTime)
+      } catch {
+        //in case of error just return the input
+        return
+      }
+    }
+    
+    let manager = FileManager.default
+    guard let documentDirectory = try? manager.url(for: .documentDirectory, in: .userDomainMask, appropriateFor: nil, create: true)
+      else {
+        return
+    }
+    
+    var outputURL = documentDirectory.appendingPathComponent("output")
+    do {
+      try manager.createDirectory(at: outputURL, withIntermediateDirectories: true, attributes: nil)
+      let name = randomString()
+      outputURL = outputURL.appendingPathComponent("\(name)-slow.mp4")
+    } catch {
+      return
+    }
+    
+    guard let exporter = AVAssetExportSession(asset: mixComposition,
+                                              presetName: AVAssetExportPresetHighestQuality) else {
+                                                return
+    }
+    
+    exporter.outputURL = outputURL
+    exporter.outputFileType = AVFileTypeMPEG4
+    exporter.shouldOptimizeForNetworkUse = true
+    //exporter.AVMutableComposition = mixComposition
+    
+    exporter.exportAsynchronously(completionHandler: {
+      switch exporter.status {
+      case .completed:
+        callback( [NSNull(), outputURL.absoluteString] )
+      case .failed:
+        callback( [NSNull(), source] )
+      default: break
+      }
+    })
+    
+    //export
+    //AVAssetExportSession* assetExport = [[AVAssetExportSession alloc]
+    //presetName:AVAssetExportPresetLowQuality];
+    //return outputURL.absoluteString;
   }
 
   @objc func compress(_ source: String, options: NSDictionary, callback: @escaping RCTResponseSenderBlock) {
