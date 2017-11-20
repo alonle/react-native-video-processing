@@ -252,58 +252,34 @@ class RNVideoTrimmer: NSObject {
           }
       }
   }
-  @objc func merge(_ paths: Array, callback: @escaping RCTResponseSenderBlock) {
+
+  @objc func merge(_ paths: Array<String>, callback: @escaping RCTResponseSenderBlock) {
+      let manager = FileManager.default
+      guard let documentDirectory = try? manager.url(for: .documentDirectory, in: .userDomainMask, appropriateFor: nil, create: true)
+        else {
+          callback(["Error creating FileManager", NSNull()])
+          return
+      }
+      var outputURL = documentDirectory.appendingPathComponent("output")
+      do {
+        try manager.createDirectory(at: outputURL, withIntermediateDirectories: true, attributes: nil)
+        let name = randomString()
+        outputURL = outputURL.appendingPathComponent("\(name)-merged.mp4")
+      } catch {
+        callback([error.localizedDescription, NSNull()])
+        print(error)
+      }
     
-      var assets = [AVAsset]()
-      for(String source in paths){
-        let sourceURL = getSourceURL(source: source)
-        let asset = AVAsset(url: sourceURL as URL)
-        assets.append(asset)
+      func result(_ message: NSError?, _ myurl: NSURL?) {
+        if myurl != nil {
+          callback( [NSNull(), outputURL.absoluteString] )
+        }else{
+          callback( ["Failed: \(String(describing: message))", NSNull()] )
+        }
       }
-
-      AVMutableComposition *mainComposition = [[AVMutableComposition alloc] init];
-      AVMutableCompositionTrack *compositionVideoTrack = [mainComposition addMutableTrackWithMediaType:AVMediaTypeVideo preferredTrackID:kCMPersistentTrackID_Invalid];
-
-
-      AVMutableCompositionTrack *soundtrackTrack = [mainComposition addMutableTrackWithMediaType:AVMediaTypeAudio preferredTrackID:kCMPersistentTrackID_Invalid];
-      CMTime insertTime = kCMTimeZero;
-
-      for (AVAsset *videoAsset in assets) {
-
-          [compositionVideoTrack insertTimeRange:CMTimeRangeMake(kCMTimeZero, videoAsset.duration) ofTrack:[[videoAsset tracksWithMediaType:AVMediaTypeVideo] objectAtIndex:0] atTime:insertTime error:nil];
-
-          [soundtrackTrack insertTimeRange:CMTimeRangeMake(kCMTimeZero, videoAsset.duration) ofTrack:[[videoAsset tracksWithMediaType:AVMediaTypeAudio] objectAtIndex:0] atTime:insertTime error:nil];
-
-          // Updating the insertTime for the next insert
-          insertTime = CMTimeAdd(insertTime, videoAsset.duration);
-      }
-
-      NSArray *newpaths = NSSearchPathForDirectoriesInDomains(NSDocumentDirectory, NSUserDomainMask, YES);
-      NSString *documentsDirectory = [newpaths objectAtIndex:0];
-
-      // Creating a full path and URL to the exported video
-      NSString *outputVideoPath =  [documentsDirectory stringByAppendingPathComponent:
-                              [NSString stringWithFormat:@"mergeVideo-%d.mov",arc4random() % 1000]];
-
-      NSString *myPathDocs =  [documentsDirectory stringByAppendingPathComponent:
-                         current_name];
-      NSURL *outptVideoUrl = [NSURL fileURLWithPath:myPathDocs];
-      AVAssetExportSession *exporter = [[AVAssetExportSession alloc] initWithAsset:mainComposition presetName:AVAssetExportPreset640x480];
-      exporter.outputURL=outptVideoUrl;
-      exporter.outputFileType =AVFileTypeMPEG4;   //AVFileTypeQuickTimeMovie;
-      exporter.shouldOptimizeForNetworkUse = YES;
-
-      exporter!.exportAsynchronously(completionHandler: {
-          switch exporter!.status {
-            case .completed:
-                callback( [NSNull(), outputURL.absoluteString] )
-            case .failed:
-                callback( ["Failed: \(exporter!.error)", NSNull()] )
-            case .cancelled:
-                callback( ["Cancelled: \(exporter!.error)", NSNull()] )
-            default: break
-          }
-      })
+      let resultvoid: (NSError?, NSURL?) -> Void = result
+      
+      VideoMergeManager.mergeMultipleVideos(destinationPath: outputURL.path, filePaths: paths, finished: resultvoid)
   }
 
   @objc func compress(_ source: String, options: NSDictionary, callback: @escaping RCTResponseSenderBlock) {
