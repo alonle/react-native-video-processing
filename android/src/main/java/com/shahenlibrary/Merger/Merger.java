@@ -48,10 +48,10 @@ public class Merger {
         UUID uuid = UUID.randomUUID();
         String imageName = uuid.toString() + "-merged";
 
-        File cacheDir = ctx.getCacheDir();
+        File externalDir = ctx.getExternalMediaDirs();
         File tempFile = null;
         try {
-            tempFile = File.createTempFile(imageName, "." + extension, cacheDir);
+            tempFile = File.createTempFile(imageName, "." + extension, externalDir);
         } catch( IOException e ) {
             promise.reject("Failed to create temp file", e.toString());
             return null;
