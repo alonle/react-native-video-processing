@@ -29,7 +29,7 @@ public class Merger {
         }
         //ffmpeg -i love-this-21.28-22.18-logo.mp4 -i love-this-21.28-22.18-logo.mp4 -i love-this-21.28-22.18-logo.mp4 -filter_complex "[0:v:0][0:a:0][1:v:0][1:a:0][2:v:0][2:a:0]concat=n=3:v=1:a=1[outv][outa];[outv]setpts=1.5*PTS[v2];[outa]atempo=0.66[a2];[v2]scale=640:480[v3];[a2]volume=3.0:precision=fixed[a3]" -map "[v3]" -map "[a3]" output22-high.mp4
 
-        String[] params = {"-strict", "-2","-movflags" ,"faststart","-filter_complex","concat=n="+paths.size()+":v=1:a=1:unsafe=1 [v] [a];[v]setpts=1.5*PTS[v2];[a]atempo=0.66[a2];[v2]scale=640:480[v3];[a2]volume=3.0:precision=fixed[a3]", "-map", "[v3]", "-map","[a3]"};
+        String[] params = {"-strict", "-2","-movflags" ,"faststart","-filter_complex","concat=n="+paths.size()+":v=1:a=1:unsafe=1 [v] [a];[v]setpts=1.1*PTS[v2];[a]atempo=0.91[a2];[v2]scale=640:480[v3];[a2]volume=3.0:precision=fixed[a3]", "-map", "[v3]", "-map","[a3]"};
 
         cmd.addAll(Arrays.asList(params));
 

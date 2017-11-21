@@ -340,7 +340,7 @@ class RNVideoTrimmer: NSObject {
     exporter.outputURL = outputURL
     exporter.outputFileType = AVFileTypeMPEG4
     exporter.shouldOptimizeForNetworkUse = true
-    //exporter.AVMutableComposition = mixComposition
+    
     
     exporter.exportAsynchronously(completionHandler: {
       switch exporter.status {
@@ -351,11 +351,6 @@ class RNVideoTrimmer: NSObject {
       default: break
       }
     })
-    
-    //export
-    //AVAssetExportSession* assetExport = [[AVAssetExportSession alloc]
-    //presetName:AVAssetExportPresetLowQuality];
-    //return outputURL.absoluteString;
   }
 
   @objc func compress(_ source: String, options: NSDictionary, callback: @escaping RCTResponseSenderBlock) {
