@@ -1,6 +1,7 @@
 package com.shahenlibrary.Merger;
 
 import android.content.Context;
+import android.os.Environment;
 import android.util.Log;
 import com.facebook.react.bridge.*;
 import com.shahenlibrary.Trimmer.Trimmer;
@@ -10,7 +11,6 @@ import java.io.File;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.List;
 import java.util.UUID;
 
 /**
@@ -21,7 +21,7 @@ public class Merger {
     private static final String LOG_TAG = "RNTrimmerManager";
 
     public static void merge(ReadableArray paths, final Promise promise, ReactApplicationContext reactContext){
-        final File tempFile = createTempFile("mp4", promise, reactContext);
+        final File mediaFile = createMediaFile(promise, reactContext);
         ArrayList<String> cmd = new ArrayList<String>();
         for(int i=0; i< paths.size();i++){
             cmd.add("-i");
@@ -33,35 +33,37 @@ public class Merger {
 
         cmd.addAll(Arrays.asList(params));
 
-        cmd.add(tempFile.getPath());
+        cmd.add(mediaFile.getPath());
 
 
         final String[] cmdToExec = cmd.toArray( new String[0] );
 
         Log.d(LOG_TAG, Arrays.toString(cmdToExec));
 
-        Trimmer.executeFfmpegCommand(cmd, tempFile.getPath(), reactContext, promise, "Merge error", null);
+        Trimmer.executeFfmpegCommand(cmd, mediaFile.getPath(), reactContext, promise, "Merge error", null);
 
     }
 
-    static File createTempFile(String extension, final Promise promise, Context ctx) {
+    private static File createMediaFile(final Promise promise, Context ctx) {
         UUID uuid = UUID.randomUUID();
-        String imageName = uuid.toString() + "-merged";
+        String mixName = uuid.toString() + "-merged.mp4";
+        File path = ctx.getExternalFilesDir(Environment.DIRECTORY_MOVIES);
+        File moviefile = new File(path, mixName);
 
-        File externalDir = ctx.getExternalMediaDirs();
+
         File tempFile = null;
         try {
-            tempFile = File.createTempFile(imageName, "." + extension, externalDir);
+            moviefile.createNewFile();
         } catch( IOException e ) {
             promise.reject("Failed to create temp file", e.toString());
             return null;
         }
 
-        if (tempFile.exists()) {
-            tempFile.delete();
+        if (moviefile.exists()) {
+            moviefile.delete();
         }
 
-        return tempFile;
+        return moviefile;
     }
 
 }
