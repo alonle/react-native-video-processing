@@ -40,19 +40,40 @@ class RNVideoTrimmer: NSObject {
 
   @objc func crop(_ source: String, options: NSDictionary, callback: @escaping RCTResponseSenderBlock) {
 
+    let sourceURL = getSourceURL(source: source)
+    let asset = AVAsset(url: sourceURL as URL)
+    let videoOrientation = self.getVideoOrientationFromAsset(asset: asset)
+    
+    let videoWidth : CGFloat
+    let videoHeight : CGFloat
+    let clipVideoTrack: AVAssetTrack! = asset.tracks(withMediaType: AVMediaTypeVideo)[0]
+    
     let cropOffsetXInt = options.object(forKey: "cropOffsetX") as! Int
     let cropOffsetYInt = options.object(forKey: "cropOffsetY") as! Int
-    let cropWidthInt = options.object(forKey: "cropWidth") as? Int
-    let cropHeightInt = options.object(forKey: "cropHeight") as? Int
-
+    var cropWidthInt = options.object(forKey: "cropWidth") as? Int
+    var cropHeightInt = options.object(forKey: "cropHeight") as? Int
+    
     if ( cropWidthInt == nil ) {
       callback(["Invalid cropWidth", NSNull()])
       return
     }
-
+    
     if ( cropHeightInt == nil ) {
       callback(["Invalid cropHeight", NSNull()])
       return
+    }
+    
+    if ( videoOrientation == UIImageOrientation.up || videoOrientation == UIImageOrientation.down ) {
+      videoWidth = clipVideoTrack.naturalSize.height
+      videoHeight = clipVideoTrack.naturalSize.width
+    } else {
+      //************* this is workaround for now we only need crop for vertical/up video *******************//
+      //we corp vrtical diff from horizontal
+      let oldWidth = cropWidthInt
+      cropWidthInt = cropHeightInt
+      cropHeightInt = oldWidth
+      videoWidth = clipVideoTrack.naturalSize.width
+      videoHeight = clipVideoTrack.naturalSize.height
     }
 
     let cropOffsetX : CGFloat = CGFloat(cropOffsetXInt);
@@ -61,9 +82,6 @@ class RNVideoTrimmer: NSObject {
     var cropHeight : CGFloat = CGFloat(cropHeightInt!);
 
     let quality = ((options.object(forKey: "quality") as? String) != nil) ? options.object(forKey: "quality") as! String : ""
-
-    let sourceURL = getSourceURL(source: source)
-    let asset = AVAsset(url: sourceURL as URL)
 
     let fileName = ProcessInfo.processInfo.globallyUniqueString
     let outputURL = "\(NSTemporaryDirectory())\(fileName).mp4"
@@ -85,19 +103,6 @@ class RNVideoTrimmer: NSObject {
     exportSession.shouldOptimizeForNetworkUse = true
 
     let videoComposition = AVMutableVideoComposition(propertiesOf: asset)
-    let clipVideoTrack: AVAssetTrack! = asset.tracks(withMediaType: AVMediaTypeVideo)[0]
-    let videoOrientation = self.getVideoOrientationFromAsset(asset: asset)
-
-    let videoWidth : CGFloat
-    let videoHeight : CGFloat
-
-    if ( videoOrientation == UIImageOrientation.up || videoOrientation == UIImageOrientation.down ) {
-      videoWidth = clipVideoTrack.naturalSize.height
-      videoHeight = clipVideoTrack.naturalSize.width
-    } else {
-      videoWidth = clipVideoTrack.naturalSize.width
-      videoHeight = clipVideoTrack.naturalSize.height
-    }
 
     videoComposition.frameDuration = CMTimeMake(1, 30)
 
@@ -253,6 +258,13 @@ class RNVideoTrimmer: NSObject {
       }
   }
   @objc func merge(_ paths: Array<String>, callback: @escaping RCTResponseSenderBlock) {
+      var AVAssetArray = [AVAsset]()
+      for filePath in paths{
+        let sourceURL = getSourceURL(source: filePath)
+        let asset = AVAsset(url: sourceURL as URL)
+        AVAssetArray.append(asset)
+      }
+    
       let manager = FileManager.default
       guard let documentDirectory = try? manager.url(for: .documentDirectory, in: .userDomainMask, appropriateFor: nil, create: true)
         else {
@@ -269,16 +281,17 @@ class RNVideoTrimmer: NSObject {
         print(error)
       }
     
-      func result(_ message: NSError?, _ myurl: NSURL?) {
+      func result(_ message: String?, _ myurl: NSURL?) {
         if myurl != nil {
-          slowMovie(source: outputURL.absoluteString, callback: callback)
+          callback( [NSNull(), outputURL.absoluteString] )
+          //slowMovie(source: outputURL.absoluteString, callback: callback)
         }else{
-          callback( ["Failed: \(String(describing: message))", NSNull()] )
+          callback( [message ?? "", NSNull()] )
         }
       }
-      let resultvoid: (NSError?, NSURL?) -> Void = result
+      let resultvoid: (String?, NSURL?) -> Void = result
     
-      VideoMergeManager.mergeMultipleVideos(destinationPath: outputURL.path, filePaths: paths, finished: resultvoid)
+      VideoMergeManager.mergeMultipleVideos2(destinationPath: outputURL.path, assetsArray: AVAssetArray, finished: resultvoid)
     
   }
   
