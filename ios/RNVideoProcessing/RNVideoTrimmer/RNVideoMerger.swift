@@ -48,7 +48,7 @@ class VideoMergeManager
     let url = NSURL(fileURLWithPath: destinationPath)
     
     
-    guard let assetExporter = AVAssetExportSession(asset: composition,presetName: AVAssetExportPresetHighestQuality) else { return }
+    guard let assetExporter = AVAssetExportSession(asset: composition,presetName: AVAssetExportPreset640x480) else { return }
     
     assetExporter.outputURL = url as URL
     assetExporter.outputFileType = AVFileTypeMPEG4

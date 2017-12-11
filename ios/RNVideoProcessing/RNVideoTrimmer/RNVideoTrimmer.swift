@@ -283,15 +283,15 @@ class RNVideoTrimmer: NSObject {
     
       func result(_ message: String?, _ myurl: NSURL?) {
         if myurl != nil {
-          callback( [NSNull(), outputURL.absoluteString] )
-          //slowMovie(source: outputURL.absoluteString, callback: callback)
+          //callback( [NSNull(), outputURL.absoluteString] )
+          slowMovie(source: outputURL.absoluteString, callback: callback)
         }else{
           callback( [message ?? "", NSNull()] )
         }
       }
       let resultvoid: (String?, NSURL?) -> Void = result
     
-      VideoMergeManager.mergeMultipleVideos2(destinationPath: outputURL.path, assetsArray: AVAssetArray, finished: resultvoid)
+      VideoMergeManager.mergeMultipleVideos(destinationPath: outputURL.path, assetsArray: AVAssetArray, finished: resultvoid)
     
   }
   
