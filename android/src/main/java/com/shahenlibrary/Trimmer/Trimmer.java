@@ -459,9 +459,18 @@ public class Trimmer {
   static void getPreviewImageAtPosition(String source, double sec, String format, final Promise promise, ReactApplicationContext ctx) {
     FFmpegMediaMetadataRetriever metadataRetriever = new FFmpegMediaMetadataRetriever();
     FFmpegMediaMetadataRetriever.IN_PREFERRED_CONFIG = Bitmap.Config.ARGB_8888;
-    metadataRetriever.setDataSource(source);
+    try {
+      metadataRetriever.setDataSource(source);
+    }catch(IllegalArgumentException e){
+      Log.d(LOG_TAG, "Error in FFmpegMediaMetadataRetriever setDataSource source is:"+ source+" "+ e.toString());
+      return;
+    }
 
     Bitmap bmp = metadataRetriever.getFrameAtTime((long) (sec * 1000000));
+
+    if (bmp == null) {
+      return;
+    }
 
     // NOTE: FIX ROTATED BITMAP
     int orientation = Integer.parseInt( metadataRetriever.extractMetadata(FFmpegMediaMetadataRetriever.METADATA_KEY_VIDEO_ROTATION) );
